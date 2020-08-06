@@ -40,14 +40,14 @@ class FormatShopifyAddresses extends Command
     {
         $handle = fopen($this->argument('csv'), 'r');
         $headers = explode(',', $this->cleanHeaders($handle));
-        $address = '<style>.page-break {page-break-after: always;}</style>';
+        $address = '<style>.page-break {page-break-after: always;} p {font-size: 24px;}</style>';
         $i = 0;
 
         if ($handle !== false) {
             while (($data = fgetcsv($handle, 1000, ',')) !== false) {
                 $data = array_combine($headers, $data);
 
-                $address .= "<h3>{$data['lineitem_name']}</h3>";
+                $address .= "<p></p><h3>{$data['lineitem_name']}</h3>";
 
                 $address .= sprintf(
                     "<p>%s</p><p>%s</p><p>%s</p><p>%s</p><p>%s</p>",
@@ -60,7 +60,7 @@ class FormatShopifyAddresses extends Command
 
                 $i++;
 
-                if ($i % 5 === 0) {
+                if ($i % 4 === 0) {
                     $address .= '<div class="page-break"></div>';
                 }
             }
