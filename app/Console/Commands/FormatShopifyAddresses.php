@@ -53,7 +53,7 @@ class FormatShopifyAddresses extends Command
             foreach (array_reverse($record) as $lineItem) {
                 $address .= "<h4>{$lineItem['Lineitem name']} - {$lineItem['Lineitem quantity']}</h4>";
 
-                if (!isset($lineItem['Shipping Address1'])) {
+                if (empty($lineItem['Shipping Address1'])) {
                     continue;
                 }
 
