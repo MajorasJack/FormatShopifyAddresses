@@ -2,11 +2,15 @@
 
 namespace App\Console\Commands;
 
+use App\Traits\GetCountryNameFromCode;
 use Illuminate\Console\Command;
 use Barryvdh\DomPDF\Facade as PDF;
+use League\Csv\Reader;
 
 class FormatShopifyAddresses extends Command
 {
+    use GetCountryNameFromCode;
+
     /**
      * The name and signature of the console command.
      *
@@ -38,43 +42,67 @@ class FormatShopifyAddresses extends Command
      */
     public function handle()
     {
-        $handle = fopen($this->argument('csv'), 'r');
-        $headers = explode(',', $this->cleanHeaders($handle));
-        $address = '<style>.page-break {page-break-after: always;} p {font-size: 24px;}</style>';
+        $csv = Reader::createFromPath($this->argument('csv'), 'r');
+        $csv->setHeaderOffset(0);
+        $address = '<style>.page-break {page-break-after: always;} p {font-size: 20px;}</style>';
         $i = 0;
 
-        if ($handle !== false) {
-            while (($data = fgetcsv($handle, 1000, ',')) !== false) {
-                $data = array_combine($headers, $data);
+        $progress = $this->output->createProgressBar(count($csv));
 
-                $address .= "<p></p><h3>{$data['lineitem_name']}</h3>";
+        foreach (collect($csv->getRecords())->groupBy('Email')->toArray() as $record) {
+            foreach (array_reverse($record) as $lineItem) {
+                $address .= "<h4>{$lineItem['Lineitem name']} - {$lineItem['Lineitem quantity']}</h4>";
+
+                if (!isset($lineItem['Shipping Address1'])) {
+                    continue;
+                }
 
                 $address .= sprintf(
-                    "<p>%s</p><p>%s</p><p>%s</p><p>%s</p><p>%s</p>",
-                    $data['shipping_name'],
-                    $data['shipping_address1'],
-                    $data['shipping_address2'],
-                    $data['shipping_city'],
-                    $data['shipping_zip']
+                    "<p>%s</p><p>%s</p><p>%s</p>",
+                    $lineItem['Shipping Name'],
+//                    $lineItem['Shipping Address1'],
+//                    $lineItem['Shipping Address2'],
+//                    $lineItem['Shipping City'],
+                    $lineItem['Shipping Zip'],
+                    $lineItem['Shipping Country'] !== 'GB'
+                        ? $this->getCountryNameFromCode($lineItem['Shipping Country'])
+                        : null
                 );
 
-                $i++;
-
-                if ($i % 4 === 0) {
-                    $address .= '<div class="page-break"></div>';
+                if (!empty($lineItem['Shipping Method'])) {
+                    $address .= "<h4> Shipping Method - {$lineItem['Shipping Method']}</h4><p></p>";
                 }
+
             }
 
-            PDF::loadHTML($address)
-                ->setPaper('a4', 'portrait')
-                ->setWarnings(false)
-                ->save(
-                    sprintf(
-                        "export-%s.pdf",
-                        now()->format('d-m-Y-H-i')
-                    )
-                );
+            $address .= '<p>---------------------</p>';
+
+            $i++;
+
+            if ($i % 4 === 0) {
+                $address .= '<div class="page-break"></div>';
+            }
+
+            $progress->advance();
         }
+
+//            if (
+//                $record['Lineitem fulfillment status'] !== 'pending'
+//            ) {
+//                continue;
+//            }
+
+        PDF::loadHTML($address)
+            ->setPaper('a4', 'portrait')
+            ->setWarnings(false)
+            ->save(
+                sprintf(
+                    "export-%s.pdf",
+                    now()->format('d-m-Y-H-i')
+                )
+            );
+
+        $progress->finish();
     }
 
     /**
